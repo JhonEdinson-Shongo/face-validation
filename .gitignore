@@ -4,3 +4,4 @@ public/models/*.json
 public/models/*.shard1
 *.local
 .DS_Store
+/local
