@@ -12,7 +12,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "models": "powershell -ExecutionPolicy Bypass -File download-models.ps1"
+    "models": "node download-models.mjs"
   },
   "dependencies": {
     "face-api.js": "^0.22.2",
