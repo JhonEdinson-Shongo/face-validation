@@ -1,54 +1,42 @@
-import React, { useRef } from 'react'
-import { useWebcam } from '../hooks/useWebcam'
-import { useFaceDetection } from '../hooks/useFaceDetection'
-import { useBlinkCapture } from '../hooks/useBlinkCapture'
-import { VideoFeed } from './VideoFeed'
-import { StatusIndicator } from './StatusIndicator'
-import { PhotoGrid } from './PhotoGrid'
-import { Controls } from './Controls'
+import { useEffect } from 'react'
+import { useStore } from '../stores/validationStore'
+import { Catalog } from '../features/catalog/Catalog'
+import { ValidationView } from '../features/validation/ValidationView'
 
-export function App() {
-  const canvasRef = useRef<HTMLCanvasElement>(null!)
-  const { videoRef, error } = useWebcam()
-  const [enabled, setEnabled] = React.useState(false)
+function ThemeToggle() {
+  const theme = useStore((s) => s.theme)
+  const setTheme = useStore((s) => s.setTheme)
 
-  const { modelsLoaded, landmarks, earValue } = useFaceDetection(videoRef, canvasRef, enabled)
-  const { status, photos, counter, start, reset } = useBlinkCapture(
-    landmarks,
-    videoRef,
-    modelsLoaded,
-  )
+  useEffect(() => {
+    const saved = localStorage.getItem('theme')
+    if (saved === 'dark' || saved === 'light') {
+      setTheme(saved)
+    }
+  }, [setTheme])
 
-  function handleStart() {
-    setEnabled(true)
-    start()
-  }
-
-  function handleReset() {
-    reset()
-    setEnabled(false)
-  }
-
-  if (error) {
-    return (
-      <div className="app">
-        <div className="error-message">
-          <p>{error}</p>
-          <p>Asegúrate de permitir el acceso a la cámara</p>
-        </div>
-      </div>
-    )
-  }
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
 
   return (
-    <div className="app">
-      <h1 className="title">Face Validation</h1>
-
-      <VideoFeed videoRef={videoRef} canvasRef={canvasRef} active={enabled} />
-      <StatusIndicator status={status} counter={counter} earValue={earValue} />
-      <PhotoGrid photos={photos} />
-      <Controls status={status} onStart={handleStart} onReset={handleReset} />
-    </div>
+    <button
+      className="theme-toggle"
+      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+    >
+      {theme === 'dark' ? '☀' : '☾'}
+    </button>
   )
 }
 
+export function App() {
+  const view = useStore((s) => s.view)
+
+  return (
+    <div className="app">
+      <ThemeToggle />
+      {view === 'catalog' ? <Catalog /> : <ValidationView />}
+    </div>
+  )
+}
