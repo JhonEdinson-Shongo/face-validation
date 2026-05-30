@@ -8,20 +8,13 @@ export function CaptureStatus() {
   if (countdown !== null) {
     return (
       <div className="capture-status capture-status-countdown">
-        {countdown > 0 && (
-          <>
-            <div className="capture-countdown-number">{countdown}</div>
-            <div className="capture-countdown-bar">
-              <div
-                className="capture-countdown-fill"
-                style={{ width: `${(countdown / CAPTURE_COUNTDOWN_SECONDS) * 100}%` }}
-              />
-            </div>
-          </>
-        )}
-        <p className="capture-text">
-          {countdown === -1 ? 'Preparando...' : 'Preparando captura...'}
-        </p>
+        <div className="capture-countdown-number">{countdown}</div>
+        <div className="capture-countdown-bar">
+          <div
+            className="capture-countdown-fill"
+            style={{ width: `${((countdown - 1) / (CAPTURE_COUNTDOWN_SECONDS - 1)) * 100}%` }}
+          />
+        </div>
       </div>
     )
   }
@@ -37,7 +30,7 @@ export function CaptureStatus() {
         />
       </div>
       <p className="capture-text">
-        Capturando... {photos.length + 1}/3
+        Capturando... {photos.length + 1}/4
       </p>
     </div>
   )

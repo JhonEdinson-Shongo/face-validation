@@ -79,7 +79,7 @@ export function ValidationView() {
     if (dataUrl) {
       addPhoto(dataUrl)
     }
-    setCountdown(-1)
+    setCountdown(CAPTURE_COUNTDOWN_SECONDS)
   }, [captureFrame, addPhoto, setCountdown])
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export function ValidationView() {
       const id = setTimeout(() => setCountdown(CAPTURE_COUNTDOWN_SECONDS), 1000)
       return () => clearTimeout(id)
     }
-    if (countdown === 1) {
+    if (countdown === 0) {
       setCountdown(null)
       triggerCapture()
       return
