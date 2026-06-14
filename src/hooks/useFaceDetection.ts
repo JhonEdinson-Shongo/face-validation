@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import * as faceapi from 'face-api.js'
 import type { FaceLandmarks68 } from 'face-api.js'
 import { calculateEAR } from '../utils/ear'
+import { detectGestures } from '../utils/gestures'
+import type { GestureType, GestureResult } from '../types'
 
 const MODEL_PATH = '/models'
 
@@ -17,6 +19,7 @@ export function useFaceDetection(
   const [modelsLoaded, setModelsLoaded] = useState(false)
   const [landmarks, setLandmarks] = useState<FaceLandmarks68 | null>(null)
   const [earValue, setEarValue] = useState<number | null>(null)
+  const [gestures, setGestures] = useState<Record<GestureType, GestureResult> | null>(null)
   const frameRef = useRef(0)
 
   useEffect(() => {
@@ -52,7 +55,7 @@ export function useFaceDetection(
       }
 
       const result = await faceapi
-        .detectSingleFace(video!, new faceapi.TinyFaceDetectorOptions({ inputSize: 224 }))
+        .detectSingleFace(video!, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 }))
         .withFaceLandmarks()
 
       ctx.clearRect(0, 0, canvas!.width, canvas!.height)
@@ -92,13 +95,27 @@ export function useFaceDetection(
         const ear = (calculateEAR(leftEye) + calculateEAR(rightEye)) / 2
         setEarValue(ear)
 
+        const currentGestures = detectGestures(lm)
+        setGestures(currentGestures)
+
+        const activeGestures = Object.entries(currentGestures)
+          .filter(([, v]) => v.active)
+          .map(([k]) => k)
+
         ctx.fillStyle = '#ffffff'
         ctx.font = '14px monospace'
         ctx.fillText(`EAR: ${ear.toFixed(3)}`, box.x, box.y - 10)
 
+        if (activeGestures.length > 0) {
+          ctx.fillStyle = '#ffcc00'
+          ctx.font = '13px sans-serif'
+          ctx.fillText(`Gestos: ${activeGestures.join(', ')}`, box.x, box.y - 28)
+        }
+
         setLandmarks(lm)
       } else {
         setEarValue(null)
+        setGestures(null)
         setLandmarks(null)
 
         ctx.fillStyle = '#ff6666'
@@ -117,5 +134,5 @@ export function useFaceDetection(
     }
   }, [enabled, modelsLoaded, videoRef, canvasRef])
 
-  return { modelsLoaded, landmarks, earValue }
+  return { modelsLoaded, landmarks, earValue, gestures }
 }
