@@ -1,15 +1,11 @@
-import { writeFileSync, mkdirSync, existsSync } from 'fs'
+import { writeFileSync, mkdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const BASE = 'https://github.com/justadudewhohacks/face-api.js/raw/master/weights'
-const MODELS = [
-  'tiny_face_detector_model-weights_manifest.json',
-  'tiny_face_detector_model-shard1',
-  'face_landmark_68_model-weights_manifest.json',
-  'face_landmark_68_model-shard1',
-]
+const BASE =
+  'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1'
+const FILES = ['face_landmarker.task']
 
 const dest = join(__dirname, 'public', 'models')
 mkdirSync(dest, { recursive: true })
@@ -25,7 +21,7 @@ async function download(file) {
 }
 
 try {
-  await Promise.all(MODELS.map(download))
+  await Promise.all(FILES.map(download))
   console.log(`Modelos descargados en: ${dest}`)
 } catch (err) {
   console.error('Error descargando modelos:', err.message)

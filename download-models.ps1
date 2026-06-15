@@ -1,15 +1,10 @@
-$Base = "https://github.com/justadudewhohacks/face-api.js/raw/master/weights"
-$Models = @(
-    "tiny_face_detector_model-weights_manifest.json",
-    "tiny_face_detector_model-shard1",
-    "face_landmark_68_model-weights_manifest.json",
-    "face_landmark_68_model-shard1"
-)
+$Base = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1"
+$Files = @("face_landmarker.task")
 
 $Dest = Join-Path $PSScriptRoot "public/models"
 New-Item -ItemType Directory -Path $Dest -Force | Out-Null
 
-foreach ($File in $Models) {
+foreach ($File in $Files) {
     $Url = "$Base/$File"
     $Out = Join-Path $Dest $File
     Write-Host "Descargando $File..."

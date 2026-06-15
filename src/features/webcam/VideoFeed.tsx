@@ -1,12 +1,13 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 
 interface Props {
   videoRef: React.RefObject<HTMLVideoElement>
   canvasRef: React.RefObject<HTMLCanvasElement>
   active: boolean
+  children?: ReactNode
 }
 
-export function VideoFeed({ videoRef, canvasRef, active }: Props) {
+export function VideoFeed({ videoRef, canvasRef, active, children }: Props) {
   const containerRef = useRef<HTMLDivElement>(null!)
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export function VideoFeed({ videoRef, canvasRef, active }: Props) {
           className="canvas-overlay"
         />
       )}
+      {children}
     </div>
   )
 }

@@ -1,11 +1,13 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { useStore, CAPTURE_COUNTDOWN_SECONDS } from '../../stores/validationStore'
 import { VideoFeed } from '../webcam/VideoFeed'
 import { ChallengeStepper } from './ChallengeStepper'
 import { CaptureStatus } from './CaptureStatus'
 import { PhotoGrid } from './PhotoGrid'
+import { GestureInstruction } from './GestureInstruction'
+import { SteadyFaceMask } from './SteadyFaceMask'
 import { useWebcam } from '../webcam/useWebcam'
-import { useFaceDetection } from '../../hooks/useFaceDetection'
+import { useFaceDetection, OVAL_THRESHOLD_INSIDE, OVAL_THRESHOLD_FILL } from '../../hooks/useFaceDetection'
 
 export function ValidationView() {
   const canvasRef = useRef<HTMLCanvasElement>(null!)
@@ -13,6 +15,7 @@ export function ValidationView() {
   const enabled = useStore((s) => s.enabled)
   const capturing = useStore((s) => s.capturing)
   const done = useStore((s) => s.done)
+  const photos = useStore((s) => s.photos)
   const currentStep = useStore((s) => s.currentStep)
   const stepStartTime = useStore((s) => s.stepStartTime)
   const setEnabled = useStore((s) => s.setEnabled)
@@ -26,12 +29,41 @@ export function ValidationView() {
   const setCountdown = useStore((s) => s.setCountdown)
   const backToCatalog = useStore((s) => s.backToCatalog)
 
+  const [restartMessage, setRestartMessage] = useState<string | null>(null)
+
   const { videoRef, error } = useWebcam()
-  const { modelsLoaded, landmarks, gestures } = useFaceDetection(videoRef, canvasRef, enabled)
+  const { modelsLoaded, landmarks, gestures, ovalScore, ovalScoreCenter, faceFillRatio } = useFaceDetection(videoRef, canvasRef, enabled)
+  const headTurnGestures = new Set(['face-left', 'face-right'])
+  const curGestureType = combination && currentStep >= 0 && currentStep < combination.steps.length
+    ? combination.steps[currentStep]
+    : null
+  const isHeadTurnStep = curGestureType !== null && headTurnGestures.has(curGestureType)
+  const effectiveScore = isHeadTurnStep ? ovalScoreCenter : ovalScore
+  const faceInsideOval = effectiveScore !== null && effectiveScore >= OVAL_THRESHOLD_INSIDE
+  const ovalCategory = effectiveScore === null || effectiveScore < OVAL_THRESHOLD_INSIDE ? 'outside' as const
+    : faceFillRatio !== null && faceFillRatio >= OVAL_THRESHOLD_FILL ? 'good' as const
+      : 'partial' as const
+  const noOval = ovalCategory !== 'good'
 
   const prevActiveRef = useRef<Record<number, boolean>>({})
   const completedRef = useRef<Set<number>>(new Set())
   const cancelRef = useRef(false)
+  const restartTriggeredRef = useRef(false)
+
+  const CAPTURE_PHOTOS = 3
+  const captureActive = countdown !== null || capturing
+  let steadyPhase: 'gestures' | 'countdown' | 'capturing'
+  if (countdown !== null) steadyPhase = 'countdown'
+  else if (capturing) steadyPhase = 'capturing'
+  else steadyPhase = 'gestures'
+  const photoIndex = capturing ? Math.max(0, photos.length - 1) : 0
+  const totalPhotos = CAPTURE_PHOTOS
+
+  const currentGesture = combination && !done && !capturing && !captureActive
+    ? combination.steps[currentStep >= 0 ? currentStep : 0]
+    : null
+
+  const isGestureActive = currentGesture && gestures?.[currentGesture]?.active
 
   useEffect(() => {
     if (modelsLoaded && !enabled && !done) {
@@ -56,14 +88,14 @@ export function ValidationView() {
     cancelRef.current = false
 
     void (async () => {
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < CAPTURE_PHOTOS; i++) {
         if (cancelRef.current) break
+        if (i > 0) {
+          await new Promise((r) => setTimeout(r, 700))
+        }
         const dataUrl = captureFrame()
         if (dataUrl) {
           addPhoto(dataUrl)
-        }
-        if (i < 2) {
-          await new Promise((r) => setTimeout(r, 1000))
         }
       }
       if (!cancelRef.current) {
@@ -80,14 +112,36 @@ export function ValidationView() {
       addPhoto(dataUrl)
     }
     setCountdown(CAPTURE_COUNTDOWN_SECONDS)
-  }, [captureFrame, addPhoto, setCountdown])
+  }, [setCountdown, captureFrame, addPhoto])
+
+  const restartValidation = useCallback(() => {
+    if (restartTriggeredRef.current) return
+    restartTriggeredRef.current = true
+    setCountdown(null)
+    setCurrentStep(-1)
+    setStepStartTime(0)
+    setCompletedSteps([])
+    prevActiveRef.current = {}
+    completedRef.current = new Set()
+    setRestartMessage('Rostro fuera del marco. Vuelve a empezar.')
+    setTimeout(() => setRestartMessage(null), 2500)
+  }, [setCountdown, setCurrentStep, setStepStartTime, setCompletedSteps])
+
+  useEffect(() => {
+    if (countdown !== null && noOval && !restartTriggeredRef.current) {
+      restartValidation()
+    }
+    if (noOval && countdown === null) {
+      prevActiveRef.current = {}
+      completedRef.current = new Set()
+    }
+    if (!noOval) {
+      restartTriggeredRef.current = false
+    }
+  }, [countdown, noOval, restartValidation])
 
   useEffect(() => {
     if (countdown === null) return
-    if (countdown === -1) {
-      const id = setTimeout(() => setCountdown(CAPTURE_COUNTDOWN_SECONDS), 1000)
-      return () => clearTimeout(id)
-    }
     if (countdown === 0) {
       setCountdown(null)
       triggerCapture()
@@ -102,7 +156,7 @@ export function ValidationView() {
   }, [])
 
   useEffect(() => {
-    if (!enabled || !landmarks || !combination || capturing || !gestures || done || countdown !== null) return
+    if (!enabled || !landmarks || !combination || capturing || !gestures || done || countdown !== null || noOval) return
 
     if (combination.mode === 'simultaneous') {
       const prevSize = completedRef.current.size
@@ -147,7 +201,7 @@ export function ValidationView() {
       setStepStartTime(Date.now())
     }
   }, [
-    landmarks, enabled, combination, capturing, gestures,
+    landmarks, enabled, combination, capturing, gestures, noOval,
     currentStep, stepStartTime, done, countdown,
     triggerCapture, startCountdown, setCurrentStep, setStepStartTime, setCompletedSteps,
   ])
@@ -181,10 +235,25 @@ export function ValidationView() {
         </div>
       )}
 
+      {restartMessage && (
+        <div className="restart-banner">{restartMessage}</div>
+      )}
+
       {modelsLoaded && (
         <>
           <ChallengeStepper />
-          <VideoFeed videoRef={videoRef} canvasRef={canvasRef} active={enabled} />
+          <VideoFeed videoRef={videoRef} canvasRef={canvasRef} active={enabled && !capturing}>
+            {currentGesture && !captureActive && (
+              <GestureInstruction gesture={currentGesture} active={!!isGestureActive} />
+            )}
+            <SteadyFaceMask
+              phase={steadyPhase}
+              countdownValue={countdown ?? 0}
+              photoIndex={photoIndex}
+              totalPhotos={totalPhotos}
+              ovalCategory={ovalCategory}
+            />
+          </VideoFeed>
           <CaptureStatus />
 
           {done && (
