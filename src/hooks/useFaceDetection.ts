@@ -13,7 +13,9 @@ const LIPS_COLOR = '#ffaa00'
 
 const OVAL_W = 0.36
 const OVAL_H = OVAL_W * (4 / 3)
-const FACE_CHECK_POINTS = [1, 10, 152, 234, 454, 468, 473]
+// Sin puntos del iris: se vuelven inestables al cerrar los ojos,
+// justo el gesto que se quiere validar.
+const FACE_CHECK_POINTS = [1, 10, 152, 234, 454]
 const FACE_CENTER_POINTS = [1, 10, 152]
 
 export const OVAL_THRESHOLD_INSIDE = 1
