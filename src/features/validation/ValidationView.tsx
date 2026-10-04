@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { useStore, CAPTURE_COUNTDOWN_SECONDS, TOTAL_PHOTOS } from '../../stores/validationStore'
+import { useStore, CAPTURE_COUNTDOWN_SECONDS, FINAL_BURST_PHOTOS } from '../../stores/validationStore'
 import { VideoFeed } from '../webcam/VideoFeed'
 import { ChallengeStepper } from './ChallengeStepper'
 import { CaptureStatus } from './CaptureStatus'
@@ -25,6 +25,7 @@ export function ValidationView() {
   const setStepStartTime = useStore((s) => s.setStepStartTime)
   const setCompletedSteps = useStore((s) => s.setCompletedSteps)
   const addPhoto = useStore((s) => s.addPhoto)
+  const resetPhotos = useStore((s) => s.resetPhotos)
   const countdown = useStore((s) => s.countdown)
   const setCountdown = useStore((s) => s.setCountdown)
   const backToCatalog = useStore((s) => s.backToCatalog)
@@ -84,15 +85,18 @@ export function ValidationView() {
   }
   const holdStartRef = useRef<Record<number, number>>({})
   const simultaneousHoldStartRef = useRef(0)
+  // Pasos que ya tienen su foto-evidencia (evita duplicar si se repite el paso).
+  const capturedStepsRef = useRef<Set<number>>(new Set())
 
-  const CAPTURE_PHOTOS = TOTAL_PHOTOS - 1
+  const CAPTURE_PHOTOS = FINAL_BURST_PHOTOS
   const captureActive = countdown !== null || capturing
   let steadyPhase: 'gestures' | 'countdown' | 'capturing'
   if (countdown !== null) steadyPhase = 'countdown'
   else if (capturing) steadyPhase = 'capturing'
   else steadyPhase = 'gestures'
   const photoIndex = capturing ? Math.max(0, photos.length - 1) : 0
-  const totalPhotos = TOTAL_PHOTOS
+  // 1 foto por gesto completado + ráfaga final tras el countdown.
+  const totalPhotos = (combination?.steps.length ?? 0) + FINAL_BURST_PHOTOS
 
   const currentGesture = combination && !done && !capturing && !captureActive
     ? combination.steps[currentStep >= 0 ? currentStep : 0]
@@ -159,12 +163,20 @@ export function ValidationView() {
   }, [capturing, setCapturing, captureFrame, addPhoto, setEnabled, setDone])
 
   const startCountdown = useCallback(() => {
+    // Las fotos de gestos ya se capturaron al completar cada paso;
+    // aquí solo corre el countdown previo a la ráfaga final.
+    setCountdown(CAPTURE_COUNTDOWN_SECONDS)
+  }, [setCountdown])
+
+  // Foto-evidencia del paso confirmado (una por gesto).
+  const captureStepPhoto = useCallback((stepIdx: number) => {
+    if (capturedStepsRef.current.has(stepIdx)) return
     const dataUrl = captureFrame()
     if (dataUrl) {
+      capturedStepsRef.current.add(stepIdx)
       addPhoto(dataUrl)
     }
-    setCountdown(CAPTURE_COUNTDOWN_SECONDS)
-  }, [setCountdown, captureFrame, addPhoto])
+  }, [captureFrame, addPhoto])
 
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -181,10 +193,12 @@ export function ValidationView() {
     completedRef.current = new Set()
     holdStartRef.current = {}
     simultaneousHoldStartRef.current = 0
+    capturedStepsRef.current = new Set()
+    resetPhotos()
     setRestartMessage(message)
     if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
     restartTimerRef.current = setTimeout(() => setRestartMessage(null), 2500)
-  }, [setCountdown, setCurrentStep, setStepStartTime, setCompletedSteps, setCapturing])
+  }, [setCountdown, setCurrentStep, setStepStartTime, setCompletedSteps, setCapturing, resetPhotos])
 
   useEffect(() => {
     if (countdown !== null && noOval && !restartTriggeredRef.current) {
@@ -248,6 +262,7 @@ export function ValidationView() {
       }
       if (!simultaneousHoldStartRef.current) simultaneousHoldStartRef.current = Date.now()
       if (Date.now() - simultaneousHoldStartRef.current >= DEFAULT_HOLD_MS) {
+        for (const i of activeSteps) captureStepPhoto(i)
         startCountdown()
       }
       return
@@ -266,6 +281,8 @@ export function ValidationView() {
       setStepStartTime(0)
       prevActiveRef.current = {}
       holdStartRef.current = {}
+      capturedStepsRef.current = new Set()
+      resetPhotos()
       return
     }
 
@@ -279,6 +296,7 @@ export function ValidationView() {
     const alreadyFired = prevActiveRef.current[stepIdx] ?? false
     if (!held || alreadyFired) return
     prevActiveRef.current[stepIdx] = true
+    captureStepPhoto(stepIdx)
 
     if (stepIdx === combination.steps.length - 1) {
       startCountdown()
@@ -289,7 +307,8 @@ export function ValidationView() {
   }, [
     landmarks, enabled, combination, capturing, gestures, noOval,
     currentStep, stepStartTime, done, countdown,
-    triggerCapture, startCountdown, setCurrentStep, setStepStartTime, setCompletedSteps,
+    triggerCapture, startCountdown, captureStepPhoto, resetPhotos,
+    setCurrentStep, setStepStartTime, setCompletedSteps,
   ])
 
   if (error) {

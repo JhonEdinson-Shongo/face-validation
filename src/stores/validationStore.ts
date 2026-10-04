@@ -5,8 +5,9 @@ type Theme = 'dark' | 'light'
 
 export const CAPTURE_COUNTDOWN_SECONDS = 3
 
-// 1 foto al iniciar el countdown + 3 en la ráfaga
-export const TOTAL_PHOTOS = 4
+// Ráfaga final tras el countdown. Aparte, se captura 1 foto por gesto
+// completado: el total de la sesión es steps.length + FINAL_BURST_PHOTOS.
+export const FINAL_BURST_PHOTOS = 3
 
 interface ValidationState {
   theme: Theme

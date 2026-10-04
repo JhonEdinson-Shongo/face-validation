@@ -1,9 +1,10 @@
-import { useStore, CAPTURE_COUNTDOWN_SECONDS, TOTAL_PHOTOS } from '../../stores/validationStore'
+import { useStore, CAPTURE_COUNTDOWN_SECONDS, FINAL_BURST_PHOTOS } from '../../stores/validationStore'
 
 export function CaptureStatus() {
   const capturing = useStore((s) => s.capturing)
   const countdown = useStore((s) => s.countdown)
   const photos = useStore((s) => s.photos)
+  const combination = useStore((s) => s.combination)
 
   if (countdown !== null) {
     // El número grande ya se muestra dentro del óvalo (SteadyFaceMask):
@@ -22,7 +23,7 @@ export function CaptureStatus() {
 
   if (!capturing) return null
 
-  const total = TOTAL_PHOTOS
+  const total = (combination?.steps.length ?? 0) + FINAL_BURST_PHOTOS
   const done = Math.min(photos.length, total)
 
   return (
