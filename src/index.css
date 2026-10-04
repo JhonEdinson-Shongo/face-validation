@@ -704,6 +704,24 @@ body {
   line-height: 1.2;
 }
 
+/* ─── Gesture hold progress ─── */
+.gesture-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.gesture-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  transition: width 50ms linear;
+}
+
 /* ─── Gesture Instruction Group (simultaneous mode) ─── */
 .gesture-instruction-group {
   position: absolute;

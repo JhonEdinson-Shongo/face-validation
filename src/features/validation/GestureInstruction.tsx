@@ -3,6 +3,7 @@ import { GESTURES_INFO, type GestureType } from '../../types'
 interface Props {
   gesture: GestureType
   active: boolean
+  progress?: number
 }
 
 const ARROWS: Partial<Record<GestureType, string>> = {
@@ -21,7 +22,7 @@ const HINTS: Partial<Record<GestureType, string>> = {
   'eyebrows-raised': 'Levanta ambas cejas',
 }
 
-export function GestureInstruction({ gesture, active }: Props) {
+export function GestureInstruction({ gesture, active, progress = 0 }: Props) {
   const info = GESTURES_INFO.find((g) => g.type === gesture)
   if (!info) return null
 
@@ -36,6 +37,11 @@ export function GestureInstruction({ gesture, active }: Props) {
         <span className="gesture-instruction-label">{info.label}</span>
         <span className="gesture-instruction-hint">{hint}</span>
       </div>
+      {active && progress > 0 && (
+        <span className="gesture-progress" aria-hidden="true">
+          <span className="gesture-progress-fill" style={{ width: `${progress * 100}%` }} />
+        </span>
+      )}
     </div>
   )
 }
