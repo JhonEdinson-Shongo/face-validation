@@ -183,6 +183,11 @@ export function useFaceDetection(
           .filter(([, v]) => v.active)
           .map(([k]) => k)
 
+        // El canvas se muestra espejado por CSS: dibujar el texto con
+        // espejo inverso para que quede legible.
+        ctx.save()
+        ctx.translate(canvas!.width, 0)
+        ctx.scale(-1, 1)
         ctx.fillStyle = '#ffffff'
         ctx.font = '14px monospace'
         ctx.fillText(`Landmarks: ${faceLm.length} pts`, 12, 24)
@@ -209,6 +214,7 @@ export function useFaceDetection(
           ctx.fillText(`Cejas: ${(browAvg * 100).toFixed(0)}%`, 12, 78)
           ctx.fillText(`Yaw: ${headPose.yawDeg.toFixed(1)}°  Pitch: ${headPose.pitchDeg.toFixed(1)}°`, 12, 92)
         }
+        ctx.restore()
       } else {
         setGestures(null)
         setLandmarks(null)
@@ -217,9 +223,13 @@ export function useFaceDetection(
         setOvalScoreCenter(null)
         setFaceFillRatio(null)
 
+        ctx.save()
+        ctx.translate(canvas!.width, 0)
+        ctx.scale(-1, 1)
         ctx.fillStyle = '#ff6666'
         ctx.font = '16px sans-serif'
         ctx.fillText('Sin rostro detectado', 16, 30)
+        ctx.restore()
       }
 
       frameRef.current = requestAnimationFrame(detect)
