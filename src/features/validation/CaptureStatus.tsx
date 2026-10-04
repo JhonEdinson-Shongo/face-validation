@@ -1,4 +1,4 @@
-import { useStore, CAPTURE_COUNTDOWN_SECONDS } from '../../stores/validationStore'
+import { useStore, CAPTURE_COUNTDOWN_SECONDS, TOTAL_PHOTOS } from '../../stores/validationStore'
 
 export function CaptureStatus() {
   const capturing = useStore((s) => s.capturing)
@@ -21,16 +21,19 @@ export function CaptureStatus() {
 
   if (!capturing) return null
 
+  const total = TOTAL_PHOTOS
+  const done = Math.min(photos.length, total)
+
   return (
     <div className="capture-status">
       <div className="capture-progress">
         <div
           className="capture-bar"
-          style={{ width: `${(photos.length / 3) * 100}%` }}
+          style={{ width: `${(done / total) * 100}%` }}
         />
       </div>
       <p className="capture-text">
-        Capturando... {photos.length + 1}/4
+        Capturando... {done}/{total}
       </p>
     </div>
   )

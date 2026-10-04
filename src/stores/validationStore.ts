@@ -5,6 +5,9 @@ type Theme = 'dark' | 'light'
 
 export const CAPTURE_COUNTDOWN_SECONDS = 3
 
+// 1 foto al iniciar el countdown + 3 en la ráfaga
+export const TOTAL_PHOTOS = 4
+
 interface ValidationState {
   theme: Theme
   setTheme: (theme: Theme) => void

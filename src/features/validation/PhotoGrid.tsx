@@ -1,4 +1,4 @@
-import { useStore } from '../../stores/validationStore'
+import { useStore, TOTAL_PHOTOS } from '../../stores/validationStore'
 
 export function PhotoGrid() {
   const photos = useStore((s) => s.photos)
@@ -9,7 +9,7 @@ export function PhotoGrid() {
     <div className="photo-grid-section">
       <h3 className="section-heading">Fotos capturadas</h3>
       <div className="photo-grid">
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length: TOTAL_PHOTOS }).map((_, i) => (
           <div key={i} className="photo-cell">
             {photos[i] ? (
               <img

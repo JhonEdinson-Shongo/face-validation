@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { useStore, CAPTURE_COUNTDOWN_SECONDS } from '../../stores/validationStore'
+import { useStore, CAPTURE_COUNTDOWN_SECONDS, TOTAL_PHOTOS } from '../../stores/validationStore'
 import { VideoFeed } from '../webcam/VideoFeed'
 import { ChallengeStepper } from './ChallengeStepper'
 import { CaptureStatus } from './CaptureStatus'
@@ -50,14 +50,14 @@ export function ValidationView() {
   const cancelRef = useRef(false)
   const restartTriggeredRef = useRef(false)
 
-  const CAPTURE_PHOTOS = 3
+  const CAPTURE_PHOTOS = TOTAL_PHOTOS - 1
   const captureActive = countdown !== null || capturing
   let steadyPhase: 'gestures' | 'countdown' | 'capturing'
   if (countdown !== null) steadyPhase = 'countdown'
   else if (capturing) steadyPhase = 'capturing'
   else steadyPhase = 'gestures'
   const photoIndex = capturing ? Math.max(0, photos.length - 1) : 0
-  const totalPhotos = CAPTURE_PHOTOS
+  const totalPhotos = TOTAL_PHOTOS
 
   const currentGesture = combination && !done && !capturing && !captureActive
     ? combination.steps[currentStep >= 0 ? currentStep : 0]
