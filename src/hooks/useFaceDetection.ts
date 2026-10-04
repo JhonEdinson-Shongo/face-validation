@@ -74,6 +74,7 @@ export function useFaceDetection(
   const [faceFillRatio, setFaceFillRatio] = useState<number | null>(null)
   const landmarkerRef = useRef<FaceLandmarker | null>(null)
   const frameRef = useRef(0)
+  const lastTimestampRef = useRef(0)
 
   useEffect(() => {
     let cancelled = false
@@ -125,9 +126,20 @@ export function useFaceDetection(
         frameRef.current = requestAnimationFrame(detect)
         return
       }
+      if (video.readyState < 2 || video.videoWidth === 0) {
+        frameRef.current = requestAnimationFrame(detect)
+        return
+      }
 
-      const timestamp = performance.now()
-      const result = landmarker.detectForVideo(video, timestamp)
+      try {
+        const timestamp = performance.now()
+        // VIDEO mode exige timestamps monótonos: evita llamar dos veces con el mismo valor.
+        if (timestamp <= lastTimestampRef.current) {
+          frameRef.current = requestAnimationFrame(detect)
+          return
+        }
+        lastTimestampRef.current = timestamp
+        const result = landmarker.detectForVideo(video, timestamp)
 
       ctx.clearRect(0, 0, canvas!.width, canvas!.height)
 
@@ -230,6 +242,8 @@ export function useFaceDetection(
         ctx.font = '16px sans-serif'
         ctx.fillText('Sin rostro detectado', 16, 30)
         ctx.restore()
+      } catch (err) {
+        console.error('Error en detectForVideo:', err)
       }
 
       frameRef.current = requestAnimationFrame(detect)
