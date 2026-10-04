@@ -49,21 +49,22 @@ export function ValidationView() {
   else if (!isHeadTurnStep && fillRatio !== null && fillRatio < FILL_MIN) ovalCategory = 'too-far'
   else if (!isHeadTurnStep && fillRatio !== null && fillRatio > FILL_MAX) ovalCategory = 'too-close'
   else ovalCategory = 'good'
-  // Histéresis: el jitter genera frames sueltos "outside" (6 frames para confirmar).
-  // La distancia cambia lento: too-far/too-close reaccionan de inmediato.
+  // Histéresis simétrica: confirma el estado tras varios frames seguidos,
+  // en ambas direcciones, para que el jitter no borre el progreso del hold.
   const [stableNoOval, setStableNoOval] = useState(false)
-  const outsideFramesRef = useRef(0)
-  const OUTSIDE_FRAMES_TO_CONFIRM = 6
+  const badFramesRef = useRef(0)
+  const goodFramesRef = useRef(0)
+  const BAD_FRAMES_TO_CONFIRM = 6
+  const GOOD_FRAMES_TO_CLEAR = 3
   useEffect(() => {
-    if (ovalCategory === 'outside') {
-      outsideFramesRef.current += 1
-      if (outsideFramesRef.current >= OUTSIDE_FRAMES_TO_CONFIRM) setStableNoOval(true)
-    } else if (ovalCategory === 'good') {
-      outsideFramesRef.current = 0
-      setStableNoOval(false)
+    if (ovalCategory === 'good') {
+      goodFramesRef.current += 1
+      badFramesRef.current = 0
+      if (goodFramesRef.current >= GOOD_FRAMES_TO_CLEAR) setStableNoOval(false)
     } else {
-      outsideFramesRef.current = 0
-      setStableNoOval(true)
+      badFramesRef.current += 1
+      goodFramesRef.current = 0
+      if (badFramesRef.current >= BAD_FRAMES_TO_CONFIRM) setStableNoOval(true)
     }
   }, [ovalCategory, containmentValue, fillRatio])
   const noOval = stableNoOval
@@ -73,7 +74,14 @@ export function ValidationView() {
   const cancelRef = useRef(false)
   const restartTriggeredRef = useRef(false)
   // Anti-rebote: el gesto debe mantenerse activo este tiempo para validarse.
-  const GESTURE_HOLD_MS = 300
+  // El parpadeo es breve por naturaleza: exige menos hold que el resto.
+  const GESTURE_HOLD_MS: Record<string, number> = {
+    'eyes-closed': 200,
+  }
+  const DEFAULT_HOLD_MS = 300
+  function holdMsFor(gesture: string): number {
+    return GESTURE_HOLD_MS[gesture] ?? DEFAULT_HOLD_MS
+  }
   const holdStartRef = useRef<Record<number, number>>({})
   const simultaneousHoldStartRef = useRef(0)
 
@@ -91,6 +99,20 @@ export function ValidationView() {
     : null
 
   const isGestureActive = currentGesture && gestures?.[currentGesture]?.active
+
+  // Progreso del hold para la barra visual (los refs se leen en render:
+  // la vista se re-renderiza a cada frame de detección).
+  const progressStepIdx = currentStep < 0 ? 0 : currentStep
+  const progressHoldStart = holdStartRef.current[progressStepIdx] ?? 0
+  const holdProgress = currentGesture && isGestureActive && progressHoldStart > 0
+    ? Math.min(1, (Date.now() - progressHoldStart) / holdMsFor(currentGesture))
+    : 0
+  const allSimultaneousActive = combination?.mode === 'simultaneous'
+    && combination.steps.length > 0
+    && combination.steps.every((g) => gestures?.[g]?.active)
+  const simultaneousProgress = allSimultaneousActive && simultaneousHoldStartRef.current > 0
+    ? Math.min(1, (Date.now() - simultaneousHoldStartRef.current) / DEFAULT_HOLD_MS)
+    : 0
 
   useEffect(() => {
     if (modelsLoaded && !enabled && !done) {
@@ -225,7 +247,7 @@ export function ValidationView() {
         return
       }
       if (!simultaneousHoldStartRef.current) simultaneousHoldStartRef.current = Date.now()
-      if (Date.now() - simultaneousHoldStartRef.current >= GESTURE_HOLD_MS) {
+      if (Date.now() - simultaneousHoldStartRef.current >= DEFAULT_HOLD_MS) {
         startCountdown()
       }
       return
@@ -253,7 +275,7 @@ export function ValidationView() {
       return
     }
     if (!holdStartRef.current[stepIdx]) holdStartRef.current[stepIdx] = Date.now()
-    const held = Date.now() - holdStartRef.current[stepIdx] >= GESTURE_HOLD_MS
+    const held = Date.now() - holdStartRef.current[stepIdx] >= holdMsFor(gesture)
     const alreadyFired = prevActiveRef.current[stepIdx] ?? false
     if (!held || alreadyFired) return
     prevActiveRef.current[stepIdx] = true
@@ -329,12 +351,12 @@ export function ValidationView() {
               combination.mode === 'simultaneous' ? (
                 <div className="gesture-instruction-group">
                   {combination.steps.map((g) => (
-                    <GestureInstruction key={g} gesture={g} active={!!gestures?.[g]?.active} />
+                    <GestureInstruction key={g} gesture={g} active={!!gestures?.[g]?.active} progress={simultaneousProgress} />
                   ))}
                 </div>
               ) : (
                 currentGesture && (
-                  <GestureInstruction gesture={currentGesture} active={!!isGestureActive} />
+                  <GestureInstruction gesture={currentGesture} active={!!isGestureActive} progress={holdProgress} />
                 )
               )
             )}
