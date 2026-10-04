@@ -6,9 +6,10 @@ export function CaptureStatus() {
   const photos = useStore((s) => s.photos)
 
   if (countdown !== null) {
+    // El número grande ya se muestra dentro del óvalo (SteadyFaceMask):
+    // aquí solo la barra de progreso para no duplicar.
     return (
       <div className="capture-status capture-status-countdown">
-        <div className="capture-countdown-number">{countdown}</div>
         <div className="capture-countdown-bar">
           <div
             className="capture-countdown-fill"

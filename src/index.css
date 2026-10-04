@@ -790,20 +790,6 @@ body {
   gap: var(--space-3);
 }
 
-.capture-countdown-number {
-  font-size: 3rem;
-  font-weight: 700;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  animation: countdownPulse 1s ease-in-out infinite;
-}
-
-@keyframes countdownPulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.08); opacity: 0.85; }
-}
-
 .capture-countdown-bar {
   width: 100%;
   height: 4px;

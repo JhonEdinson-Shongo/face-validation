@@ -36,6 +36,9 @@ export function ChallengeStepper() {
 
   if (!combination) return null
 
+  // currentStep empieza en -1: mostrar el paso 0 como actual.
+  const effectiveStep = combination.mode === 'sequential' && currentStep < 0 ? 0 : currentStep
+
   return (
     <div className="challenge-stepper">
       <div className="stepper-row">
@@ -44,8 +47,8 @@ export function ChallengeStepper() {
           if (combination.mode === 'simultaneous') {
             state = completedSteps.includes(i) ? 'done' : 'current'
           } else {
-            if (i < currentStep) state = 'done'
-            else if (i === currentStep) state = 'current'
+            if (i < effectiveStep) state = 'done'
+            else if (i === effectiveStep) state = 'current'
             else state = 'pending'
           }
 
