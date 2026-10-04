@@ -39,11 +39,24 @@ export function ValidationView() {
     : null
   const isHeadTurnStep = curGestureType !== null && headTurnGestures.has(curGestureType)
   const effectiveScore = isHeadTurnStep ? ovalScoreCenter : ovalScore
-  const faceInsideOval = effectiveScore !== null && effectiveScore >= OVAL_THRESHOLD_INSIDE
   const ovalCategory = effectiveScore === null || effectiveScore < OVAL_THRESHOLD_INSIDE ? 'outside' as const
     : faceFillRatio !== null && faceFillRatio >= OVAL_THRESHOLD_FILL ? 'good' as const
       : 'partial' as const
-  const noOval = ovalCategory !== 'good'
+  // Histéresis: el jitter de landmarks genera frames sueltos "outside".
+  // Solo se considera fuera tras varios frames seguidos; "partial" no suma ni resetea.
+  const [stableNoOval, setStableNoOval] = useState(false)
+  const outsideFramesRef = useRef(0)
+  const OUTSIDE_FRAMES_TO_CONFIRM = 6
+  useEffect(() => {
+    if (ovalCategory === 'outside') {
+      outsideFramesRef.current += 1
+      if (outsideFramesRef.current >= OUTSIDE_FRAMES_TO_CONFIRM) setStableNoOval(true)
+    } else if (ovalCategory === 'good') {
+      outsideFramesRef.current = 0
+      setStableNoOval(false)
+    }
+  }, [ovalCategory, effectiveScore, faceFillRatio])
+  const noOval = stableNoOval
 
   const prevActiveRef = useRef<Record<number, boolean>>({})
   const completedRef = useRef<Set<number>>(new Set())
@@ -114,45 +127,60 @@ export function ValidationView() {
     setCountdown(CAPTURE_COUNTDOWN_SECONDS)
   }, [setCountdown, captureFrame, addPhoto])
 
-  const restartValidation = useCallback(() => {
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const restartValidation = useCallback((message = 'Rostro fuera del marco. Vuelve a empezar.') => {
     if (restartTriggeredRef.current) return
     restartTriggeredRef.current = true
+    cancelRef.current = true
+    setCapturing(false)
     setCountdown(null)
     setCurrentStep(-1)
     setStepStartTime(0)
     setCompletedSteps([])
     prevActiveRef.current = {}
     completedRef.current = new Set()
-    setRestartMessage('Rostro fuera del marco. Vuelve a empezar.')
-    setTimeout(() => setRestartMessage(null), 2500)
-  }, [setCountdown, setCurrentStep, setStepStartTime, setCompletedSteps])
+    setRestartMessage(message)
+    if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
+    restartTimerRef.current = setTimeout(() => setRestartMessage(null), 2500)
+  }, [setCountdown, setCurrentStep, setStepStartTime, setCompletedSteps, setCapturing])
 
   useEffect(() => {
     if (countdown !== null && noOval && !restartTriggeredRef.current) {
       restartValidation()
     }
-    if (noOval && countdown === null) {
+    if (capturing && noOval && !restartTriggeredRef.current) {
+      restartValidation('Rostro fuera del marco. Captura cancelada.')
+    }
+    if (noOval && countdown === null && !capturing) {
       prevActiveRef.current = {}
       completedRef.current = new Set()
     }
     if (!noOval) {
       restartTriggeredRef.current = false
     }
-  }, [countdown, noOval, restartValidation])
+  }, [countdown, capturing, noOval, restartValidation])
 
   useEffect(() => {
     if (countdown === null) return
     if (countdown === 0) {
+      if (noOval) {
+        restartValidation()
+        return
+      }
       setCountdown(null)
       triggerCapture()
       return
     }
     const id = setTimeout(() => setCountdown(countdown - 1), 1000)
     return () => clearTimeout(id)
-  }, [countdown, triggerCapture, setCountdown])
+  }, [countdown, noOval, triggerCapture, restartValidation, setCountdown])
 
   useEffect(() => {
-    return () => { cancelRef.current = true }
+    return () => {
+      cancelRef.current = true
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -249,8 +277,12 @@ export function ValidationView() {
         </div>
       )}
 
-      {restartMessage && (
+      {restartMessage ? (
         <div className="restart-banner">{restartMessage}</div>
+      ) : (
+        noOval && enabled && !done && (
+          <div className="restart-banner">Vuelve al centro del óvalo</div>
+        )
       )}
 
       {modelsLoaded && (
