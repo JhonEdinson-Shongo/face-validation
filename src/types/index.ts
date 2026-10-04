@@ -1,11 +1,4 @@
-export type AppStatus = 'idle' | 'loading' | 'ready' | 'watching' | 'capturing' | 'complete'
-
 export type AppView = 'catalog' | 'validation'
-
-export interface Point {
-  x: number
-  y: number
-}
 
 export type GestureType =
   | 'eyes-closed'

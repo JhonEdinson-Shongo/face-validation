@@ -21,7 +21,7 @@ export function ComboBuilder() {
     if (!canStart) return
     startValidation({
       id: `custom-${Date.now()}`,
-      name: name.trim(),
+      name: name.trim() || 'Combinación personalizada',
       description: `${mode === 'sequential' ? 'Secuencial' : 'Simultáneo'} — ${selected.length} gesto${selected.length > 1 ? 's' : ''}`,
       mode,
       steps: selected,
@@ -78,7 +78,7 @@ export function ComboBuilder() {
           ))}
         </div>
 
-        <button className="btn btn-start" disabled={!canStart} onClick={handleStart}>
+        <button className="btn btn-primary" disabled={!canStart} onClick={handleStart}>
           Iniciar validación
         </button>
       </div>
