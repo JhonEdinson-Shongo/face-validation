@@ -13,35 +13,59 @@ const LIPS_COLOR = '#ffaa00'
 
 const OVAL_W = 0.36
 const OVAL_H = OVAL_W * (4 / 3)
-// Sin puntos del iris: se vuelven inestables al cerrar los ojos,
-// justo el gesto que se quiere validar.
-const FACE_CHECK_POINTS = [1, 10, 152, 234, 454]
+const OVAL_CX = 0.5
+const OVAL_CY = 0.5
+// Núcleo del rostro para pasos de giro (el giro saca los laterales del óvalo).
 const FACE_CENTER_POINTS = [1, 10, 152]
 
-export const OVAL_THRESHOLD_INSIDE = 1
-export const OVAL_THRESHOLD_FILL = 0.6
+// % mínimo de landmarks dentro del óvalo para dar el rostro por alineado.
+export const CONTAINMENT_MIN = 0.85
+export const CONTAINMENT_CENTER_MIN = 1
+// % del área del óvalo que debe cubrir el rostro: ni muy lejos ni muy cerca.
+export const FILL_MIN = 0.6
+export const FILL_MAX = 1.0
 
-function calcOvalScore(landmarks: NormalizedLandmark[], points: number[]): number {
-  const rx = OVAL_W / 2
-  const ry = OVAL_H / 2
-  let insideCount = 0
-  for (const idx of points) {
-    const lm = landmarks[idx]
-    const dx = (lm.x - 0.5) / rx
-    const dy = (lm.y - 0.5) / ry
-    if (dx * dx + dy * dy <= 1) insideCount++
-  }
-  return insideCount / points.length
+function isInsideOval(x: number, y: number): boolean {
+  const dx = (x - OVAL_CX) / (OVAL_W / 2)
+  const dy = (y - OVAL_CY) / (OVAL_H / 2)
+  return dx * dx + dy * dy <= 1
 }
 
-function calcFaceFillRatio(landmarks: NormalizedLandmark[]): number {
-  const leftCheek = landmarks[234]
-  const rightCheek = landmarks[454]
-  const faceWidth = Math.abs(rightCheek.x - leftCheek.x)
-  const forehead = landmarks[10]
-  const chin = landmarks[152]
-  const faceHeight = Math.abs(chin.y - forehead.y)
-  return Math.min(faceWidth / OVAL_W, faceHeight / OVAL_H)
+// Tanto por uno (0-1) de landmarks dentro del óvalo, sobre los 478 puntos.
+function calcContainment(landmarks: NormalizedLandmark[]): number {
+  if (landmarks.length === 0) return 0
+  let inside = 0
+  for (const lm of landmarks) {
+    if (isInsideOval(lm.x, lm.y)) inside++
+  }
+  return inside / landmarks.length
+}
+
+function calcContainmentFor(landmarks: NormalizedLandmark[], points: number[]): number {
+  if (points.length === 0) return 0
+  let inside = 0
+  for (const idx of points) {
+    const lm = landmarks[idx]
+    if (lm && isInsideOval(lm.x, lm.y)) inside++
+  }
+  return inside / points.length
+}
+
+// Tanto por uno del área del óvalo cubierta por el bounding box del rostro.
+function calcFillRatio(landmarks: NormalizedLandmark[]): number {
+  let minX = 1
+  let maxX = 0
+  let minY = 1
+  let maxY = 0
+  for (const lm of landmarks) {
+    if (lm.x < minX) minX = lm.x
+    if (lm.x > maxX) maxX = lm.x
+    if (lm.y < minY) minY = lm.y
+    if (lm.y > maxY) maxY = lm.y
+  }
+  const faceArea = Math.max(0, maxX - minX) * Math.max(0, maxY - minY)
+  const ovalArea = Math.PI * (OVAL_W / 2) * (OVAL_H / 2)
+  return ovalArea > 0 ? faceArea / ovalArea : 0
 }
 
 function computeHeadPose(faceLm: NormalizedLandmark[]) {
@@ -73,9 +97,9 @@ export function useFaceDetection(
   const [landmarks, setLandmarks] = useState<true | null>(null)
   const [gestures, setGestures] = useState<Record<GestureType, GestureResult> | null>(null)
   const [nosePosition, setNosePosition] = useState<{ x: number; y: number } | null>(null)
-  const [ovalScore, setOvalScore] = useState<number | null>(null)
-  const [ovalScoreCenter, setOvalScoreCenter] = useState<number | null>(null)
-  const [faceFillRatio, setFaceFillRatio] = useState<number | null>(null)
+  const [containment, setContainment] = useState<number | null>(null)
+  const [containmentCenter, setContainmentCenter] = useState<number | null>(null)
+  const [fillRatio, setFillRatio] = useState<number | null>(null)
   const landmarkerRef = useRef<FaceLandmarker | null>(null)
   const frameRef = useRef(0)
   const lastTimestampRef = useRef(0)
@@ -201,9 +225,9 @@ export function useFaceDetection(
 
         const headPose = computeHeadPose(faceLm)
         setNosePosition({ x: faceLm[1].x, y: faceLm[1].y })
-        setOvalScore(calcOvalScore(faceLm, FACE_CHECK_POINTS))
-        setOvalScoreCenter(calcOvalScore(faceLm, FACE_CENTER_POINTS))
-        setFaceFillRatio(calcFaceFillRatio(faceLm))
+        setContainment(calcContainment(faceLm))
+        setContainmentCenter(calcContainmentFor(faceLm, FACE_CENTER_POINTS))
+        setFillRatio(calcFillRatio(faceLm))
 
         const currentGestures = detectGestures(blendshapes ? bs : null, headPose)
         setGestures(currentGestures)
@@ -244,14 +268,20 @@ export function useFaceDetection(
           ctx.fillText(`Cejas: ${(browAvg * 100).toFixed(0)}%`, 12, 78)
           ctx.fillText(`Yaw: ${headPose.yawDeg.toFixed(1)}°  Pitch: ${headPose.pitchDeg.toFixed(1)}°`, 12, 92)
         }
+
+        const cont = calcContainment(faceLm)
+        const fill = calcFillRatio(faceLm)
+        ctx.fillStyle = '#aaaaaa'
+        ctx.font = '11px monospace'
+        ctx.fillText(`Dentro: ${(cont * 100).toFixed(0)}%  Lleno: ${(fill * 100).toFixed(0)}%`, 12, 106)
         ctx.restore()
       } else {
         setGestures(null)
         setLandmarks(null)
         setNosePosition(null)
-        setOvalScore(null)
-        setOvalScoreCenter(null)
-        setFaceFillRatio(null)
+        setContainment(null)
+        setContainmentCenter(null)
+        setFillRatio(null)
 
         ctx.save()
         ctx.translate(canvas!.width, 0)
@@ -284,5 +314,5 @@ export function useFaceDetection(
     setLoadAttempt((a) => a + 1)
   }
 
-  return { modelsLoaded, modelError, retryModels, landmarks, gestures, nosePosition, ovalScore, ovalScoreCenter, faceFillRatio }
+  return { modelsLoaded, modelError, retryModels, landmarks, gestures, nosePosition, containment, containmentCenter, fillRatio }
 }
