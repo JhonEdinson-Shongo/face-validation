@@ -242,6 +242,7 @@ export function useFaceDetection(
         ctx.font = '16px sans-serif'
         ctx.fillText('Sin rostro detectado', 16, 30)
         ctx.restore()
+      }
       } catch (err) {
         console.error('Error en detectForVideo:', err)
       }
