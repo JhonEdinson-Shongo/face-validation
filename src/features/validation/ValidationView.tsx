@@ -32,7 +32,7 @@ export function ValidationView() {
   const [restartMessage, setRestartMessage] = useState<string | null>(null)
 
   const { videoRef, error } = useWebcam()
-  const { modelsLoaded, landmarks, gestures, ovalScore, ovalScoreCenter, faceFillRatio } = useFaceDetection(videoRef, canvasRef, enabled)
+  const { modelsLoaded, modelError, retryModels, landmarks, gestures, ovalScore, ovalScoreCenter, faceFillRatio } = useFaceDetection(videoRef, canvasRef, enabled)
   const headTurnGestures = new Set(['face-left', 'face-right'])
   const curGestureType = combination && currentStep >= 0 && currentStep < combination.steps.length
     ? combination.steps[currentStep]
@@ -228,10 +228,24 @@ export function ValidationView() {
         <div />
       </nav>
 
-      {!modelsLoaded && (
+      {!modelsLoaded && !modelError && (
         <div className="status-loading">
           <div className="spinner" />
           <p>Cargando modelos de detección facial...</p>
+        </div>
+      )}
+
+      {modelError && (
+        <div className="error-view">
+          <p className="error-message">{modelError}</p>
+          <div className="validation-actions">
+            <button className="btn btn-primary" onClick={retryModels}>
+              Reintentar
+            </button>
+            <button className="btn btn-secondary" onClick={backToCatalog}>
+              Volver al catálogo
+            </button>
+          </div>
         </div>
       )}
 

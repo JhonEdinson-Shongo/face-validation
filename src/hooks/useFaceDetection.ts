@@ -66,6 +66,8 @@ export function useFaceDetection(
   enabled: boolean,
 ) {
   const [modelsLoaded, setModelsLoaded] = useState(false)
+  const [modelError, setModelError] = useState<string | null>(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [landmarks, setLandmarks] = useState<true | null>(null)
   const [gestures, setGestures] = useState<Record<GestureType, GestureResult> | null>(null)
   const [nosePosition, setNosePosition] = useState<{ x: number; y: number } | null>(null)
@@ -83,16 +85,29 @@ export function useFaceDetection(
       try {
         const vision = await FilesetResolver.forVisionTasks(WASM_PATH)
         if (cancelled) return
-        const landmarker = await FaceLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: MODEL_PATH,
-            delegate: 'GPU',
-          },
-          outputFaceBlendshapes: true,
-          outputFacialTransformationMatrixes: true,
-          runningMode: 'VIDEO',
-          numFaces: 1,
-        })
+        // GPU primero, CPU como respaldo si el dispositivo no lo soporta.
+        let landmarker: FaceLandmarker | null = null
+        try {
+          landmarker = await FaceLandmarker.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetPath: MODEL_PATH,
+              delegate: 'GPU',
+            },
+            outputFaceBlendshapes: true,
+            runningMode: 'VIDEO',
+            numFaces: 1,
+          })
+        } catch {
+          landmarker = await FaceLandmarker.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetPath: MODEL_PATH,
+              delegate: 'CPU',
+            },
+            outputFaceBlendshapes: true,
+            runningMode: 'VIDEO',
+            numFaces: 1,
+          })
+        }
         if (cancelled) {
           landmarker.close()
           return
@@ -101,6 +116,7 @@ export function useFaceDetection(
         setModelsLoaded(true)
       } catch (err) {
         console.error('Error initializing MediaPipe Face Landmarker:', err)
+        if (!cancelled) setModelError('No se pudieron cargar los modelos de detección facial. Revisa tu conexión e inténtalo de nuevo.')
       }
     }
 
@@ -109,7 +125,7 @@ export function useFaceDetection(
       cancelled = true
       landmarkerRef.current?.close()
     }
-  }, [])
+  }, [loadAttempt])
 
   useEffect(() => {
     if (!enabled || !modelsLoaded) return
@@ -258,5 +274,13 @@ export function useFaceDetection(
     }
   }, [enabled, modelsLoaded, videoRef, canvasRef])
 
-  return { modelsLoaded, landmarks, gestures, nosePosition, ovalScore, ovalScoreCenter, faceFillRatio }
+  function retryModels() {
+    setModelError(null)
+    setModelsLoaded(false)
+    landmarkerRef.current?.close()
+    landmarkerRef.current = null
+    setLoadAttempt((a) => a + 1)
+  }
+
+  return { modelsLoaded, modelError, retryModels, landmarks, gestures, nosePosition, ovalScore, ovalScoreCenter, faceFillRatio }
 }
