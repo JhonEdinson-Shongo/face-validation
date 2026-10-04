@@ -618,6 +618,37 @@ body {
   line-height: 1.2;
 }
 
+/* ─── Gesture Instruction Group (simultaneous mode) ─── */
+.gesture-instruction-group {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.gesture-instruction-group .gesture-instruction {
+  position: static;
+  background: rgba(0, 0, 0, 0.6);
+  padding: var(--space-2) var(--space-5);
+}
+
+.gesture-instruction-group .gesture-instruction.is-active {
+  background: rgba(0, 200, 100, 0.75);
+}
+
+.gesture-instruction-group .gesture-instruction-arrow {
+  font-size: 1.5rem;
+  min-width: 36px;
+}
+
+.gesture-instruction-group .gesture-instruction-label {
+  font-size: 0.9rem;
+}
+
 /* ─── Steady Face Mask ─── */
 .steady-overlay {
   position: absolute;
