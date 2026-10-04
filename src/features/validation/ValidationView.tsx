@@ -5,9 +5,9 @@ import { ChallengeStepper } from './ChallengeStepper'
 import { CaptureStatus } from './CaptureStatus'
 import { PhotoGrid } from './PhotoGrid'
 import { GestureInstruction } from './GestureInstruction'
-import { SteadyFaceMask } from './SteadyFaceMask'
+import { SteadyFaceMask, type OvalCategory } from './SteadyFaceMask'
 import { useWebcam } from '../webcam/useWebcam'
-import { useFaceDetection, OVAL_THRESHOLD_INSIDE, OVAL_THRESHOLD_FILL } from '../../hooks/useFaceDetection'
+import { useFaceDetection, CONTAINMENT_MIN, CONTAINMENT_CENTER_MIN, FILL_MIN, FILL_MAX } from '../../hooks/useFaceDetection'
 
 export function ValidationView() {
   const canvasRef = useRef<HTMLCanvasElement>(null!)
@@ -32,18 +32,25 @@ export function ValidationView() {
   const [restartMessage, setRestartMessage] = useState<string | null>(null)
 
   const { videoRef, error } = useWebcam()
-  const { modelsLoaded, modelError, retryModels, landmarks, gestures, ovalScore, ovalScoreCenter, faceFillRatio } = useFaceDetection(videoRef, canvasRef, enabled)
+  const { modelsLoaded, modelError, retryModels, landmarks, gestures, containment, containmentCenter, fillRatio } = useFaceDetection(videoRef, canvasRef, enabled)
   const headTurnGestures = new Set(['face-left', 'face-right'])
   const curGestureType = combination && currentStep >= 0 && currentStep < combination.steps.length
     ? combination.steps[currentStep]
     : null
   const isHeadTurnStep = curGestureType !== null && headTurnGestures.has(curGestureType)
-  const effectiveScore = isHeadTurnStep ? ovalScoreCenter : ovalScore
-  const ovalCategory = effectiveScore === null || effectiveScore < OVAL_THRESHOLD_INSIDE ? 'outside' as const
-    : faceFillRatio !== null && faceFillRatio >= OVAL_THRESHOLD_FILL ? 'good' as const
-      : 'partial' as const
-  // Histéresis: el jitter de landmarks genera frames sueltos "outside".
-  // Solo se considera fuera tras varios frames seguidos; "partial" no suma ni resetea.
+  // Alineación: % de landmarks dentro del óvalo (núcleo en giros).
+  const containmentValue = isHeadTurnStep ? containmentCenter : containment
+  const containmentLimit = isHeadTurnStep ? CONTAINMENT_CENTER_MIN : CONTAINMENT_MIN
+  const aligned = containmentValue !== null && containmentValue >= containmentLimit
+  // Distancia: % del área del óvalo cubierta por el rostro.
+  // En giros se ignora: el giro reduce el ancho aparente y falsearía el "acércate".
+  let ovalCategory: OvalCategory
+  if (!aligned) ovalCategory = 'outside'
+  else if (!isHeadTurnStep && fillRatio !== null && fillRatio < FILL_MIN) ovalCategory = 'too-far'
+  else if (!isHeadTurnStep && fillRatio !== null && fillRatio > FILL_MAX) ovalCategory = 'too-close'
+  else ovalCategory = 'good'
+  // Histéresis: el jitter genera frames sueltos "outside" (6 frames para confirmar).
+  // La distancia cambia lento: too-far/too-close reaccionan de inmediato.
   const [stableNoOval, setStableNoOval] = useState(false)
   const outsideFramesRef = useRef(0)
   const OUTSIDE_FRAMES_TO_CONFIRM = 6
@@ -54,8 +61,11 @@ export function ValidationView() {
     } else if (ovalCategory === 'good') {
       outsideFramesRef.current = 0
       setStableNoOval(false)
+    } else {
+      outsideFramesRef.current = 0
+      setStableNoOval(true)
     }
-  }, [ovalCategory, effectiveScore, faceFillRatio])
+  }, [ovalCategory, containmentValue, fillRatio])
   const noOval = stableNoOval
 
   const prevActiveRef = useRef<Record<number, boolean>>({})

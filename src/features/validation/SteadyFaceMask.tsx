@@ -1,4 +1,4 @@
-type OvalCategory = 'good' | 'partial' | 'outside'
+export type OvalCategory = 'good' | 'too-far' | 'too-close' | 'outside'
 
 interface Props {
   phase: 'gestures' | 'countdown' | 'capturing'
@@ -10,7 +10,8 @@ interface Props {
 
 const OVAL_LABELS: Record<OvalCategory, { msg: string; cn: string }> = {
   good: { msg: '', cn: 'steady-oval-good' },
-  partial: { msg: 'Acércate más al centro', cn: 'steady-oval-partial' },
+  'too-far': { msg: 'Acércate más al óvalo', cn: 'steady-oval-far' },
+  'too-close': { msg: 'Aléjate un poco del óvalo', cn: 'steady-oval-close' },
   outside: { msg: 'Debes estar dentro del óvalo', cn: 'steady-oval-outside' },
 }
 

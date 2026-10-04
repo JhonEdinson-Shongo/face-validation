@@ -776,9 +776,14 @@ body {
   animation: steady-pulse-good 2s ease-in-out infinite !important;
 }
 
-.steady-oval-partial {
+.steady-oval-far {
   border-color: rgba(60, 140, 255, 0.9) !important;
-  animation: steady-pulse-partial 1.5s ease-in-out infinite !important;
+  animation: steady-pulse-far 1.5s ease-in-out infinite !important;
+}
+
+.steady-oval-close {
+  border-color: rgba(255, 150, 50, 0.9) !important;
+  animation: steady-pulse-close 1.5s ease-in-out infinite !important;
 }
 
 .steady-oval-outside {
@@ -791,9 +796,14 @@ body {
   50% { border-color: rgba(0, 255, 136, 0.7); }
 }
 
-@keyframes steady-pulse-partial {
+@keyframes steady-pulse-far {
   0%, 100% { border-color: rgba(60, 140, 255, 0.9); }
   50% { border-color: rgba(100, 180, 255, 0.7); }
+}
+
+@keyframes steady-pulse-close {
+  0%, 100% { border-color: rgba(255, 150, 50, 0.9); }
+  50% { border-color: rgba(255, 190, 100, 0.7); }
 }
 
 @keyframes steady-pulse-outside {
