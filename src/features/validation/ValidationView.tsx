@@ -62,6 +62,10 @@ export function ValidationView() {
   const completedRef = useRef<Set<number>>(new Set())
   const cancelRef = useRef(false)
   const restartTriggeredRef = useRef(false)
+  // Anti-rebote: el gesto debe mantenerse activo este tiempo para validarse.
+  const GESTURE_HOLD_MS = 300
+  const holdStartRef = useRef<Record<number, number>>({})
+  const simultaneousHoldStartRef = useRef(0)
 
   const CAPTURE_PHOTOS = TOTAL_PHOTOS - 1
   const captureActive = countdown !== null || capturing
@@ -143,6 +147,8 @@ export function ValidationView() {
     setCompletedSteps([])
     prevActiveRef.current = {}
     completedRef.current = new Set()
+    holdStartRef.current = {}
+    simultaneousHoldStartRef.current = 0
     setRestartMessage(message)
     if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
     restartTimerRef.current = setTimeout(() => setRestartMessage(null), 2500)
@@ -158,6 +164,8 @@ export function ValidationView() {
     if (noOval && countdown === null && !capturing) {
       prevActiveRef.current = {}
       completedRef.current = new Set()
+      holdStartRef.current = {}
+      simultaneousHoldStartRef.current = 0
     }
     if (!noOval) {
       restartTriggeredRef.current = false
@@ -190,16 +198,24 @@ export function ValidationView() {
     if (!enabled || !landmarks || !combination || capturing || !gestures || done || countdown !== null || noOval) return
 
     if (combination.mode === 'simultaneous') {
-      const prevSize = completedRef.current.size
-      for (const [i, g] of combination.steps.entries()) {
-        if (gestures[g].active) completedRef.current.add(i)
-      }
-      if (completedRef.current.size !== prevSize) {
-        setCompletedSteps(Array.from(completedRef.current))
+      // Sin latch: refleja solo los gestos activos ahora mismo.
+      const activeSteps = combination.steps
+        .map((g, i) => (gestures[g].active ? i : -1))
+        .filter((i) => i >= 0)
+      const prev = completedRef.current
+      const changed = activeSteps.length !== prev.size || activeSteps.some((i) => !prev.has(i))
+      if (changed) {
+        completedRef.current = new Set(activeSteps)
+        setCompletedSteps(activeSteps)
       }
 
-      const allActive = combination.steps.every((g) => gestures[g].active)
-      if (allActive) {
+      const allActive = activeSteps.length === combination.steps.length
+      if (!allActive) {
+        simultaneousHoldStartRef.current = 0
+        return
+      }
+      if (!simultaneousHoldStartRef.current) simultaneousHoldStartRef.current = Date.now()
+      if (Date.now() - simultaneousHoldStartRef.current >= GESTURE_HOLD_MS) {
         startCountdown()
       }
       return
@@ -210,9 +226,6 @@ export function ValidationView() {
 
     const gesture = combination.steps[stepIdx]
     const isActive = gestures[gesture]?.active ?? false
-    const wasActive = prevActiveRef.current[stepIdx] ?? false
-    const risingEdge = !wasActive && isActive
-    prevActiveRef.current[stepIdx] = isActive
 
     const elapsed = Date.now() - stepStartTime
 
@@ -220,10 +233,20 @@ export function ValidationView() {
       setCurrentStep(-1)
       setStepStartTime(0)
       prevActiveRef.current = {}
+      holdStartRef.current = {}
       return
     }
 
-    if (!risingEdge) return
+    if (!isActive) {
+      holdStartRef.current[stepIdx] = 0
+      prevActiveRef.current[stepIdx] = false
+      return
+    }
+    if (!holdStartRef.current[stepIdx]) holdStartRef.current[stepIdx] = Date.now()
+    const held = Date.now() - holdStartRef.current[stepIdx] >= GESTURE_HOLD_MS
+    const alreadyFired = prevActiveRef.current[stepIdx] ?? false
+    if (!held || alreadyFired) return
+    prevActiveRef.current[stepIdx] = true
 
     if (stepIdx === combination.steps.length - 1) {
       startCountdown()
@@ -292,8 +315,18 @@ export function ValidationView() {
         <>
           <ChallengeStepper />
           <VideoFeed videoRef={videoRef} canvasRef={canvasRef} active={enabled && !capturing}>
-            {currentGesture && !captureActive && (
-              <GestureInstruction gesture={currentGesture} active={!!isGestureActive} />
+            {!captureActive && combination && !done && !capturing && (
+              combination.mode === 'simultaneous' ? (
+                <div className="gesture-instruction-group">
+                  {combination.steps.map((g) => (
+                    <GestureInstruction key={g} gesture={g} active={!!gestures?.[g]?.active} />
+                  ))}
+                </div>
+              ) : (
+                currentGesture && (
+                  <GestureInstruction gesture={currentGesture} active={!!isGestureActive} />
+                )
+              )
             )}
             <SteadyFaceMask
               phase={steadyPhase}
