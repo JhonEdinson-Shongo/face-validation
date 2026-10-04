@@ -86,11 +86,14 @@ export function ValidationView() {
 
   const captureFrame = useCallback((): string | null => {
     const video = videoRef.current
-    if (!video) return null
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) return null
     const c = document.createElement('canvas')
     c.width = video.videoWidth
     c.height = video.videoHeight
     const ctx = c.getContext('2d')!
+    // La vista previa se muestra espejada: replicarlo para que la foto coincida.
+    ctx.translate(c.width, 0)
+    ctx.scale(-1, 1)
     ctx.drawImage(video, 0, 0)
     return c.toDataURL('image/jpeg', 0.9)
   }, [videoRef])
